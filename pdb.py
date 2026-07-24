@@ -30,11 +30,11 @@ ASM_INSTR = {
   0x83: "CALL_FUNCTION"
 }
 
-def disassemble(bytecode, offset):
+def disassemble(bytecode):
     if len(bytecode) % 2 != 0:
         raise ValueError("Bytecode length must be even")
 
-    instructions = [None for _ in range(offset)]
+    instructions = []
     for i in range(0, len(bytecode), 2):
         instructions.append((bytecode[i], bytecode[i + 1]))
 
@@ -42,14 +42,13 @@ def disassemble(bytecode, offset):
 
 class Code:
     def __init__(self, bytecode, variables, constants, functions):
-        self.offset = 30
         self.variables = variables
         self.constants = constants
         self.globals = functions
         self.stack = [None] * STACK_SIZE
         self.rsp = 0
-        self.program = disassemble(bytecode, self.offset)
-        self.rip = self.offset
+        self.program = disassemble(bytecode)
+        self.rip = 0
         self.breakpoints = []
 
     def pop(self):
@@ -153,7 +152,7 @@ class Code:
             self.stepi()
         
     def run(self):
-        self.rip = self.offset
+        self.rip = 0
         self.rsp = 0
         self.cont()
 
