@@ -4,7 +4,10 @@
 # guide: https://www.goldsborough.me/python/low-level/2016/10/04/00-31-30-disassembling_python_bytecode/
 
 STACK_SIZE = 0x100
-CALL_STACK_SIZE = 0X10
+CALL_STACK_SIZE = 0x10
+BLOCK_STACK_SIZE = 0x10
+
+BLOCK_TYPES = ["try", "except", "finally"]
 
 ASM_INSTR = {
   0x01: "POP_TOP",
@@ -41,12 +44,21 @@ def disassemble(bytecode):
     return instructions
 
 class Code:
+    class Block:
+        def __init__(block_type, return_addr):
+            if block_type not in BLOCK_TYPES:
+                raise ValueError(blocktype, "is not a recognized block type.")
+            self.type = block_type
+            self.addr = return_addr
+            
     def __init__(self, bytecode, variables, constants, functions):
         self.variables = variables
         self.constants = constants
         self.globals = functions
         self.stack = [None] * STACK_SIZE
         self.rsp = 0
+        self.bstack = [None] * BLOCK_STACK_SIZE
+        self.rbp = 0
         self.program = disassemble(bytecode)
         self.rip = 0
         self.breakpoints = []
@@ -58,6 +70,14 @@ class Code:
     def push(self, val):
         self.stack[self.rsp] = val
         self.rsp += 1
+
+    def bpop(self):
+        self.rbp -= 1
+        return self.bstack[self.rbp]
+
+    def bpush(self, val):
+        self.bstack[self.rbp] = val
+        self.rbp += 1
 
     def POP_TOP(self, val):
         self.pop()
@@ -86,10 +106,10 @@ class Code:
         raise RuntimeError("RETURN_VALUE has not been implemented") # TODO: properly implement return with a call stack. For now, it's handled in cont
 
     def POP_BLOCK(self, val):
-        raise RuntimeError("POP_BLOCK has not been implemented") # TODO: figure out how to handle blocks
+        self.bpop()
 
     def POP_EXCEPT(self, val):
-        raise RuntimeError("POP_EXCEPT has not been implemented") # TODO: figure out how to handle blocks
+        raise RuntimeError("An Exception", self.pop(), "has occurred") # TODO: figure out how to handle blocks
 
     def LOAD_CONST(self, val):
         self.push(self.constants[val])
@@ -117,9 +137,12 @@ class Code:
         self.push(self.globals[val])
 
     def JUMP_IF_NOT_EXEC_MATCH(self, val):
-        raise RuntimeError("JUMP_IF_NOT_EXEC_MATCH is not implemented") # TODO: figure out what this does
+        tos = self.pop()
+        if type(tos) is Exception:
+            self.rip = val - 1 
 
     def SETUP_FINALLY(self, val):
+        self.bpush
         self.rip += val # TODO: Figure out what this does
 
     def LOAD_FAST(self, val):
@@ -140,23 +163,129 @@ class Code:
         if func:
             self.push(func(*argv))
 
-
     def stepi(self):
+        if self.rip >= len(self.program):
+            print("ERROR: Instruction", self.rip, "is outside the scope of the program")
+            return -1
         inst = ASM_INSTR[self.program[self.rip][0]]
         param = [self.program[self.rip][1]]
         getattr(self, inst)(*param)
         self.rip += 1
 
     def cont(self):
-        while self.rip < len(self.program) and (self.program[self.rip][0] != 0x53) and (self.rip not in self.breakpoints):
+        while self.rip < len(self.program):
+            if self.program[self.rip][0] == 0x53:
+                print("Program ended with return value", val)
+                return self.pop()
             self.stepi()
-        
-    def run(self):
+            if self.rip in self.breakpoints:
+                print("Breakpoint hit at instruction", self.rip)
+                return None
+        if self.rip == len(self.program):
+            print("ERROR: end of program reached without return value")
+        else:
+            print("ERROR: instruction", self.rip, "is outside the scope of the program")
+
+    def reset(self, command):
         self.rip = 0
         self.rsp = 0
-        self.cont()
+        self.rbp = 0
+        for i in range(1,len(command)):
+            self.variables[i-1] = eval(command[i])
 
+    def run(self, command):
+        self.reset(command)
+        val = self.cont()
+
+    def tui(self):
+        while True:
+            command = input("> ").split(' ')
+            match command[0]:
+                case 'b' | 'break':
+                    self.breakpoints.append(int(command[1]))
+                case 'r' | 'run':
+                    self.run(command)
+                case 'c' | 'continue':
+                    self.cont()
+                case 'si' | 'step-instruction':
+                    self.stepi()
+                case 'starti':
+                    self.reset(command)
+                case 's' | 'set':
+                    if len(command) > 1:
+                        match command[1]:
+                            case 'rip':
+                                self.rip = int(command[2])
+                            case 'rsp':
+                                self.rsp = int(command[2])
+                            case 'rbp':
+                                self.rbp = int(command[2])
+                            case 'stack':
+                                idx = int(command[2])
+                                self.stack[idx] = eval(command[3])
+                            case 'var':
+                                idx = int(command[2])
+                                self.variables[idx] = eval(command[3])
+                            case 'const':
+                                idx = int(command[2])
+                                self.constants[idx] = eval(command[3])
+                            case 'global':
+                                idx = int(command[2])
+                                self.globals[idx] = eval(command[3])
+                            case 'h' | 'help':
+                                print(self.rbp)
+                            case _:
+                                print(self.rbp)
+                case 'p' | 'print':
+                    if len(command) > 1:
+                        match command[1]:
+                            case 'rip':
+                                print(self.rip)
+                            case 'rsp':
+                                print(self.rsp)
+                            case 'rbp':
+                                print(self.rbp)
+                            case 'stack':
+                                if len(command) == 2:
+                                    for i in range(self.rsp-1, -1, -1):
+                                        print(i,":", self.stack[i])
+                                else:
+                                    idx = int(command[2])
+                                    print(idx,":", self.stack[idx])
+                            case 'program':
+                                if len(command) == 2:
+                                    for i in range(len(self.program)-1, -1, -1):
+                                        preface = " *" if i == self.rip else "  "
+                                        print(preface,i,":", ASM_INSTR[self.program[i][0]], "(", self.program[i][1], ")")
+                                else:
+                                    idx = int(command[2])
+                                    print(idx,":", ASM_INSTR[self.program[idx][0]], "(", self.program[idx][1], ")")
+                            case 'var':
+                                if len(command) == 2:
+                                    print(self.variables)
+                                else:
+                                    print(self.variables[int(command[2])])
+                            case 'const':
+                                if len(command) == 2:
+                                    print(self.constants)
+                                else:
+                                    print(self.constants[int(command[2])])
+                            case 'global':
+                                if len(command) == 2:
+                                    print(self.globals)
+                                else:
+                                    print(self.globals[int(command[2])])
+                            case 'h' | 'help':
+                                print(self.rbp)
+                            case _:
+                                print(eval(command[1]))
+                    
+                case 'h' | 'help':
+                    print('idk buster, figure it out yourself')
+                case 'e' | 'exit':
+                    return 0
+                case _:
+                    print('Command', command[0], 'is not a recognized command')
 # Test Example
-test_code = Code(bytes.fromhex('640004003700'), ['a'], [1,12,123], ['max'])
-test_code.run()
-print(test_code.pop())
+test_code = Code(bytes.fromhex('640004003700'), ['a', 'b', 'c', 'd'], [1,12,123], ['max'])
+test_code.tui()
