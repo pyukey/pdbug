@@ -3,11 +3,14 @@
 # code: https://docs.python.org/3/c-api/code.html
 # guide: https://www.goldsborough.me/python/low-level/2016/10/04/00-31-30-disassembling_python_bytecode/
 
+import builtins
+
 STACK_SIZE = 0x100
 CALL_STACK_SIZE = 0x10
 BLOCK_STACK_SIZE = 0x10
 
-BLOCK_TYPES = ["try", "except", "finally"]
+ERROR_TYPES = ["return", "known-error", "unknown"]
+
 
 ASM_INSTR = {
   0x01: "POP_TOP",
@@ -44,11 +47,15 @@ def disassemble(bytecode):
     return instructions
 
 class Code:
+    class CodeError(Exception):
+        def __init__(self, error_type, message):
+            if error_type not in ERROR_TYPES:
+                raise ValueError(error_type, "is not a recognized CodeError type.")
+            self.type = error_type
+            self.message = message
+
     class Block:
-        def __init__(block_type, return_addr):
-            if block_type not in BLOCK_TYPES:
-                raise ValueError(blocktype, "is not a recognized block type.")
-            self.type = block_type
+        def __init__(self, return_addr):
             self.addr = return_addr
             
     def __init__(self, bytecode, variables, constants, functions):
@@ -82,6 +89,7 @@ class Code:
     def POP_TOP(self, val):
         self.pop()
 
+    # Typically used in preparation of Error-handling, since restoring the exception state requires multiple values to be popped
     def DUP_TOP(self, val):
         tos = self.pop()
         self.push(tos)
@@ -90,26 +98,35 @@ class Code:
     def BINARY_MODULO(self, val):
         tos = self.pop()
         tos1 = self.pop()
-        self.push(tos1 % tos)
+        try:
+            self.push(tos1 % tos)
+        except:
+            raise self.CodeError('known-error', 'Attempted to do modulo by a non-negative number')
     
     def BINARY_FLOOR_DIVIDE(self, val):
         tos = self.pop()
         tos1 = self.pop()
-        self.push(tos1 // tos)
+        try:
+            self.push(tos1 // tos)
+        except:
+            raise self.CodeError('known-error', 'Division by 0 occurred.')
         
     def INPLACE_ADD(self, val):
         tos = self.pop()
         tos1 = self.pop()
-        self.push(tos1 + tos)
+        try:
+            self.push(tos1 + tos)
+        except:
+            raise self.CodeError('known-error', "Values "+str(tos1)+" and "+str(tos)+" cannot be added together")
 
     def RETURN_VALUE(self, val):
-        raise RuntimeError("RETURN_VALUE has not been implemented") # TODO: properly implement return with a call stack. For now, it's handled in cont
+        raise self.CodeError('return', val)
 
     def POP_BLOCK(self, val):
         self.bpop()
 
     def POP_EXCEPT(self, val):
-        raise RuntimeError("An Exception", self.pop(), "has occurred") # TODO: figure out how to handle blocks
+        raise Coderror('known-error', self.pop())
 
     def LOAD_CONST(self, val):
         self.push(self.constants[val])
@@ -118,12 +135,12 @@ class Code:
         tos = self.pop()
         tos1 = self.pop()
         match val:
-            case 0: push(tos1 < tos)
-            case 1: push(tos1 <= tos)
-            case 2: push(tos1 == tos)
-            case 3: push(tos1 != tos)
-            case 4: push(tos1 > tos)
-            case 5: push(tos1 >= tos)
+            case 0: self.push(tos1 < tos)
+            case 1: self.push(tos1 <= tos)
+            case 2: self.push(tos1 == tos)
+            case 3: self.push(tos1 != tos)
+            case 4: self.push(tos1 > tos)
+            case 5: self.push(tos1 >= tos)
 
     def JUMP_FORWARD(self, val):
         self.rip += val
@@ -136,14 +153,13 @@ class Code:
     def LOAD_GLOBAL(self, val):
         self.push(self.globals[val])
 
-    def JUMP_IF_NOT_EXEC_MATCH(self, val):
+    def JUMP_IF_NOT_EXC_MATCH(self, val):
         tos = self.pop()
         if type(tos) is Exception:
             self.rip = val - 1 
 
     def SETUP_FINALLY(self, val):
-        self.bpush
-        self.rip += val # TODO: Figure out what this does
+        self.bpush(self.Block(val+self.rip))
 
     def LOAD_FAST(self, val):
         self.push(self.variables[val])
@@ -157,30 +173,52 @@ class Code:
     def CALL_FUNCTION(self, val):
         argv = [None for _ in range(val)]
         for i in range(val-1, -1, -1):
-            argv[i] = pop()
+            argv[i] = self.pop()
         func = getattr(builtins, self.pop())
 
-        if func:
-            self.push(func(*argv))
+        try:
+            if func:
+                self.push(func(*argv))
+        except:
+            raise self.CodeError('known-error', "The called function "+func+" encountered an exception.")
 
     def stepi(self):
         if self.rip >= len(self.program):
-            print("ERROR: Instruction", self.rip, "is outside the scope of the program")
-            return -1
+            raise self.CodeError('unkown', "Instruction" +str(self.rip)+ "is outside the scope of the program.")
+            
         inst = ASM_INSTR[self.program[self.rip][0]]
         param = [self.program[self.rip][1]]
         getattr(self, inst)(*param)
         self.rip += 1
 
-    def cont(self):
+    def cont(self, steps):
         while self.rip < len(self.program):
-            if self.program[self.rip][0] == 0x53:
-                print("Program ended with return value", val)
-                return self.pop()
-            self.stepi()
+            try:
+                self.stepi()
+            except self.CodeError as e:
+                match e.type:
+                    case 'return':
+                        print("Program returned value:", e.message)
+                        return
+                    case 'known-error':
+                        print("Program hit an exception:", e.message)
+                        block = self.bpop()
+                        self.rip = block.addr+1
+                    case 'unknown':
+                        print("Unexpected error raised:", e.message)
+                    case _:
+                        raise RuntimeError("Unknown CodeError encountered: \nType: " + e.type + "\nMessage: " + e.message)
+            except Exception as e:
+                raise e
+                 
             if self.rip in self.breakpoints:
                 print("Breakpoint hit at instruction", self.rip)
-                return None
+                return
+
+            steps -= 1
+            if steps == 0:
+                return
+
         if self.rip == len(self.program):
             print("ERROR: end of program reached without return value")
         else:
@@ -195,7 +233,7 @@ class Code:
 
     def run(self, command):
         self.reset(command)
-        val = self.cont()
+        self.cont(-1)
 
     def tui(self):
         while True:
@@ -206,9 +244,9 @@ class Code:
                 case 'r' | 'run':
                     self.run(command)
                 case 'c' | 'continue':
-                    self.cont()
+                    self.cont(-1)
                 case 'si' | 'step-instruction':
-                    self.stepi()
+                    self.cont(1)
                 case 'starti':
                     self.reset(command)
                 case 's' | 'set':
@@ -287,5 +325,5 @@ class Code:
                 case _:
                     print('Command', command[0], 'is not a recognized command')
 # Test Example
-test_code = Code(bytes.fromhex('640004003700'), ['a', 'b', 'c', 'd'], [1,12,123], ['max'])
+test_code = Code(bytes.fromhex('64017c0037007d00740064027c0064031a0083027d027a067c007c0216007d0257006e1e04007401792f01007d0301007a127c0164046b0272245700590064007d037e03640553005700590064007d037e036406530064007d037e03770177007c0064076b05724d7c00740274037c0183018301160064026b02724b740474057c01830174036b0272487c01830153006408830153006406530074037c01830174067c00830117005300'), ['', '', '', ''], [None,83,0,97,'cat','/','',123,'0'], ['max','Exception','len','str','eval','type','chr'])
 test_code.tui()
