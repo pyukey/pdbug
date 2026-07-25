@@ -4,6 +4,7 @@
 # guide: https://www.goldsborough.me/python/low-level/2016/10/04/00-31-30-disassembling_python_bytecode/
 
 import builtins
+import shlex
 
 STACK_SIZE = 0x100
 CALL_STACK_SIZE = 0x10
@@ -46,6 +47,15 @@ def disassemble(bytecode):
 
     return instructions
 
+def parse_input(text):
+    def try_int(s):
+        try:
+            return int(s)
+        except ValueError:
+            return s
+
+    return [try_int(item) for item in shlex.split(text)]
+
 class Code:
     class CodeError(Exception):
         def __init__(self, error_type, message):
@@ -59,9 +69,12 @@ class Code:
             self.addr = return_addr
             
     def __init__(self, bytecode, variables, constants, functions):
-        self.variables = variables
-        self.constants = constants
-        self.globals = functions
+        self.og_variables = variables
+        self.variables = []
+        self.og_constants = constants
+        self.constants = []
+        self.og_globals = functions
+        self.globals = []
         self.stack = [None] * STACK_SIZE
         self.rsp = 0
         self.bstack = [None] * BLOCK_STACK_SIZE
@@ -101,6 +114,9 @@ class Code:
         try:
             self.push(tos1 % tos)
         except:
+            self.push(self.rip)
+            self.push(None)
+            self.push(Exception)
             raise self.CodeError('known-error', 'Attempted to do modulo by a non-negative number')
     
     def BINARY_FLOOR_DIVIDE(self, val):
@@ -109,24 +125,29 @@ class Code:
         try:
             self.push(tos1 // tos)
         except:
+            self.push(None)
             raise self.CodeError('known-error', 'Division by 0 occurred.')
         
-    def INPLACE_ADD(self, val):
+    def BINARY_ADD(self, val):
         tos = self.pop()
         tos1 = self.pop()
         try:
             self.push(tos1 + tos)
         except:
+            self.push(None)
             raise self.CodeError('known-error', "Values "+str(tos1)+" and "+str(tos)+" cannot be added together")
 
+    def INPLACE_ADD(self, val):
+        self.BINARY_ADD(val)
+
     def RETURN_VALUE(self, val):
-        raise self.CodeError('return', val)
+        raise self.CodeError('return', self.pop())
 
     def POP_BLOCK(self, val):
         self.bpop()
 
     def POP_EXCEPT(self, val):
-        raise Coderror('known-error', self.pop())
+        self.bpop
 
     def LOAD_CONST(self, val):
         self.push(self.constants[val])
@@ -155,7 +176,8 @@ class Code:
 
     def JUMP_IF_NOT_EXC_MATCH(self, val):
         tos = self.pop()
-        if type(tos) is Exception:
+        tos1 = self.pop()
+        if type(tos1) is type(tos):
             self.rip = val - 1 
 
     def SETUP_FINALLY(self, val):
@@ -174,13 +196,18 @@ class Code:
         argv = [None for _ in range(val)]
         for i in range(val-1, -1, -1):
             argv[i] = self.pop()
-        func = getattr(builtins, self.pop())
+        func_name = self.pop()
+        func = getattr(builtins, func_name)
 
         try:
             if func:
-                self.push(func(*argv))
-        except:
-            raise self.CodeError('known-error', "The called function "+func+" encountered an exception.")
+                if func_name == 'type':
+                    self.push(func(*argv).__name__)
+                else:
+                    self.push(func(*argv))
+        except Exception as e:
+            self.push(None)
+            raise self.CodeError('known-error', "The called function "+func.__name__+" encountered an exception: " + e.args[0])
 
     def stepi(self):
         if self.rip >= len(self.program):
@@ -202,8 +229,11 @@ class Code:
                         return
                     case 'known-error':
                         print("Program hit an exception:", e.message)
+                        if self.rbp == 0:
+                            return
                         block = self.bpop()
                         self.rip = block.addr+1
+                        self.rbp += 1 # you don't actually pop
                     case 'unknown':
                         print("Unexpected error raised:", e.message)
                     case _:
@@ -228,16 +258,20 @@ class Code:
         self.rip = 0
         self.rsp = 0
         self.rbp = 0
+        self.variables = self.og_variables.copy()
+        self.constants = self.og_constants.copy()
+        self.globals = self.og_globals.copy()
         for i in range(1,len(command)):
-            self.variables[i-1] = eval(command[i])
+            self.variables[i-1] = command[i]
 
     def run(self, command):
         self.reset(command)
         self.cont(-1)
 
+
     def tui(self):
         while True:
-            command = input("> ").split(' ')
+            command = parse_input(input("> "))
             match command[0]:
                 case 'b' | 'break':
                     self.breakpoints.append(int(command[1]))
