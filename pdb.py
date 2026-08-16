@@ -1466,7 +1466,11 @@ class Code:
         self.push(self.variables[val])
 
         # Decompilation
-        self.ppush(f"var{val}")
+        name = self.og_variables[val]
+        if name == '':
+            self.ppush(f"var{val}")
+        else:
+            self.ppush(name)
         self.pretty_print('')
 
     def STORE_FAST(self, val):
@@ -1474,14 +1478,22 @@ class Code:
         self.variables[val] = self.pop()
 
         # Decompilation
-        self.pretty_print(f"var{val} = {self.ppop()}")
+        name = self.og_variables[val]
+        if name == '':
+            name = f"var{val}"
+        
+        self.pretty_print(f"{name} = {self.ppop()}")
 
     def DELETE_FAST(self, val):
         # Functionality
         del self.variables[val]
 
         # Decompilation
-        self.pretty_print(f"del var{val}")
+        name = self.og_variables[val]
+        if name == '':
+            name = f"var{val}"
+
+        self.pretty_print(f"del {name}")
 
     def LOAD_NAME(self, val):
         # Functionality
