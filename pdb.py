@@ -325,7 +325,7 @@ class Code:
         self.rpp = 0
         self.og_program = disassemble(bytecode)
         self.program = []
-        self.pretty_program = [ASM_STR[i[0]] for i in self.og_program]
+        self.pretty_program = ['' for _ in self.og_program] # [ASM_STR[i[0]] for i in self.og_program]
         self.rip = 0
         self.breakpoints = []
 
@@ -531,7 +531,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"{tos1} @= {tos}")
+            self.ppush(f"@= {tos1}")
         else:
             self.ppush(f"{tos1} @ {tos}")
         self.pretty_print('')
@@ -549,7 +549,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"{tos1} **= {tos}")
+            self.ppush(f"**= {tos1}")
         else:
             self.ppush(f"{tos1} ** {tos}")
         self.pretty_print('')
@@ -567,7 +567,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"{tos1} *= {tos}")
+            self.ppush(f"*= {tos1}")
         else:
             self.ppush(f"{tos1} * {tos}")
         self.pretty_print('')
@@ -591,7 +591,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"{tos1} %= {tos}")
+            self.ppush(f"%= {tos1}")
         else:
             self.ppush(f"{tos1} % {tos}")
         self.pretty_print('')
@@ -613,7 +613,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"{tos1} += {tos}")
+            self.ppush(f"+= {tos1}")
         else:
             self.ppush(f"{tos1} + {tos}")
         self.pretty_print('')
@@ -631,7 +631,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"{tos1} -= {tos}")
+            self.ppush(f"-= {tos1}")
         else:
             self.ppush(f"{tos1} - {tos}")
         self.pretty_print('')
@@ -662,7 +662,10 @@ class Code:
         # Decompilation
         tos = self.ppop()
         tos1 = self.ppop()
-        self.pretty_print(f"{tos1}[{tos}] = {tos2}")
+        if 'INPLACE' in ASM_INSTR[self.program[self.rip-1][0]]:
+            self.pretty_print(f"{tos1}[{tos}] {tos2}")
+        else:
+            self.pretty_print(f"{tos1}[{tos}] = {tos2}")
 
     def DELETE_SUBSCR(self, val):
         # Functionality
@@ -690,7 +693,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"{tos1} //= {tos}")
+            self.ppush(f"//= {tos1}")
         else:
             self.ppush(f"{tos1} // {tos}")
         self.pretty_print('')
@@ -708,7 +711,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"{tos1} /= {tos}")
+            self.ppush(f"/= {tos1}")
         else:
             self.ppush(f"{tos1} / {tos}")
         self.pretty_print('')
@@ -726,7 +729,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"{tos1} <<= {tos}")
+            self.ppush(f"<<= {tos1}")
         else:
             self.ppush(f"{tos1} << {tos}")
         self.pretty_print('')
@@ -745,7 +748,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"{tos1} >>= {tos}")
+            self.ppush(f">>= {tos1}")
         else:
             self.ppush(f"{tos1} >> {tos}")
         self.pretty_print('')
@@ -763,7 +766,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"{tos1} &= {tos}")
+            self.ppush(f"&= {tos1}")
         else:
             self.ppush(f"{tos1} & {tos}")
         self.pretty_print('')
@@ -781,7 +784,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"{tos1} ^= {tos}")
+            self.ppush(f"^= {tos1}")
         else:
             self.ppush(f"{tos1} ^ {tos}")
         self.pretty_print('')
@@ -799,7 +802,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"{tos1} |= {tos}")
+            self.ppush(f"|= {tos1}")
         else:
             self.ppush(f"{tos1} | {tos}")
         self.pretty_print('')
@@ -1452,7 +1455,10 @@ class Code:
         self.globals[val] = self.pop()
 
         # Decompilation
-        self.pretty_print(f"globals[{val}] = {self.ppop()}")
+        if 'INPLACE' in ASM_INSTR[self.program[self.rip-1][0]]:
+            self.pretty_print(f"globals[{val}] {self.ppop()}")
+        else:
+            self.pretty_print(f"globals[{val}] = {self.ppop()}")
 
     def DELETE_GLOBAL(self, val):
         # Functionality
@@ -1482,7 +1488,10 @@ class Code:
         if name == '':
             name = f"var{val}"
         
-        self.pretty_print(f"{name} = {self.ppop()}")
+        if 'INPLACE' in ASM_INSTR[self.program[self.rip-1][0]]:
+            self.pretty_print(f"{name} {self.ppop()}")
+        else:
+            self.pretty_print(f"{name} = {self.ppop()}")
 
     def DELETE_FAST(self, val):
         # Functionality
@@ -1508,7 +1517,10 @@ class Code:
         self.names[val] = self.pop()
 
         # Decompilation
-        self.pretty_print(f"names[{val}] = {self.ppop()}")
+        if 'INPLACE' in ASM_INSTR[self.program[self.rip-1][0]]:
+            self.pretty_print(f"names[{val}] {self.ppop()}")
+        else:
+            self.pretty_print(f"names[{val}] = {self.ppop()}")
 
     def DELETE_NAME(self, val):
         # Functionality
@@ -1537,7 +1549,10 @@ class Code:
         # Decompilation
         tos = self.ppop()
         tos1 = self.ppop()
-        self.pretty_print(f"{tos}.{name} = {tos1}")
+        if 'INPLACE' in ASM_INSTR[self.program[self.rip-1][0]]:
+            self.pretty_print(f"{tos}.{name} {tos1}")
+        else:
+            self.pretty_print(f"{tos}.{name} = {tos1}")
 
     def DELETE_ATTR(self, val):
         # Functionality
