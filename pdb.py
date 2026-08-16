@@ -1964,9 +1964,19 @@ class Code:
                                 idx = int(command[2])
                                 self.names[idx] = eval(command[3])
                             case 'h' | 'help':
-                                print(self.rbp)
+                                print('You can set the following values:')
+                                print('    rip [IDX]            : Sets the instruction pointer to [IDX]')
+                                print('    rsp [IDX]            : Sets the stack pointer to [IDX]')
+                                print('    rbp [IDX]            : Sets the block stack pointer to [IDX]')
+                                print('    stack [IDX] [VALUE]  : Sets the stack value at index [IDX] to [VALUE]')
+                                print('    var [IDX] [VALUE]    : Sets variable [IDX] to [VALUE]')
+                                print('    const [IDX] [VALUE]  : Sets constant [IDX] to [VALUE]')
+                                print('    global [IDX] [VALUE] : Sets global [IDX] to [VALUE]')
+                                print('    name [IDX] [VALUE]   : Sets name [IDX] to [VALUE]')
+                                print('    h | help             : This helps')
+                                print('WARNING: If you mess up this command, you could crash the debugger')
                             case _:
-                                print(self.rbp)
+                                print('Nothing happened...')
                 case 'p' | 'print':
                     if len(command) > 1:
                         match command[1]:
@@ -2018,12 +2028,34 @@ class Code:
                                 else:
                                     print(self.globals[int(command[2])])
                             case 'h' | 'help':
-                                print(self.rbp)
+                                print('You can set the following values:')
+                                print('    rip            : Prints the instruction pointer')
+                                print('    rsp            : Prints the stack pointer')
+                                print('    rbp            : Prints the block stack pointer')
+                                print('    stack {IDX}    : Prints the stack. If {IDX} is specified, prints the value on the stack at index {IDX}')
+                                print('    program {IDX}  : Prints the program. As you run your program, the decompiled code will be filled in!')
+                                print('                     If you specify {IDX}, prints the instruction at index {IDX}.') 
+                                print('                     If you specify {IDX1} and {IDX2}, then it prints all instructions in that range.')
+                                print('    var {IDX}      : Prints the variables. If {IDX} is specified, prints the variable at index {IDX}')
+                                print('    const {IDX}    : Prints the constants. If {IDX} is specified, prints the constant at index {IDX}')
+                                print('    global {IDX}   : Prints the globals. If {IDX} is specified, prints the global at index {IDX}')
+                                print('    name {IDX}     : Prints the names. If {IDX} is specified, prints the name at index {IDX}')
+                                print('    h | help       : This helps')
+                                print('WARNING: If you mess up this command, you could crash the debugger')
                             case _:
                                 print(eval(command[1]))
                     
                 case 'h' | 'help':
-                    print('idk buster, figure it out yourself')
+                    print('The following commands are available:')
+                    print('    b | break [INT]      : Adds a breakpoint at [INT]')
+                    print('    r | run [ARGS]       : Runs the program until it returns, hits a breakpoint, or an exception occurs')
+                    print('    c | continue         : Continues running the program until it returns, hits a breakpoint, or an exception occurs')
+                    print('   si | step-instruction : Runs current instruction and advances to next')
+                    print('        starti [ARGS]    : Initializes a program runtime')
+                    print('    s | set              : Set a value')
+                    print('    p | print            : Prints a value')
+                    print('    h | help             : This helps')
+                    print('    e | exit             : Terminates the debugger')
                 case 'e' | 'exit':
                     return 0
                 case _:
