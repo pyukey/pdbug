@@ -366,8 +366,7 @@ class Code:
         self.pop()
 
         # Decompilation
-        self.ppop()
-        self.pretty_program[self.rip] = ''
+        self.pretty_print(self.ppop())
 
     def ROT_TWO(self, val):
         # Functionality
@@ -660,7 +659,6 @@ class Code:
         tos1 = self.pop()
         tos2 = self.pop()
         tos1[tos] = tos2
-        # TODO: Figure out how tos1 is preserved
 
         # Decompilation
         tos = self.ppop()
@@ -675,7 +673,6 @@ class Code:
         tos = self.pop()
         tos1 = self.pop()
         del tos1[tos]
-        # TODO: Figure out how tos1 is preserved
 
         # Decompilation
         tos = self.ppop()
@@ -1655,12 +1652,12 @@ class Code:
             case 2:
                 tos = self.ppop()
                 tos1 = self.ppop()
-                self.ppush(f"slice({tos1},{tos})")
+                self.ppush(f"{tos1}:{tos}")
             case 2:
                 tos = self.ppop()
                 tos1 = self.ppop()
                 tos2 = self.ppop()
-                self.ppush(f"slice({tos2},{tos1},{tos})")
+                self.ppush(f"{tos2}:{tos1}:{tos}")
         self.pretty_print('')
 
     def LOAD_BUILD_CLASS(self, val):
@@ -2073,5 +2070,5 @@ class Code:
                     print('Command', command[0], 'is not a recognized command')
 # Test Example
 #test_code = Code(bytes.fromhex('64017c0037007d00740064027c0064031a0083027d027a067c007c0216007d0257006e1e04007401792f01007d0301007a127c0164046b0272245700590064007d037e03640553005700590064007d037e036406530064007d037e03770177007c0064076b05724d7c00740274037c0183018301160064026b02724b740474057c01830174036b0272487c01830153006408830153006406530074037c01830174067c00830117005300'), ['', '', '', ''], [None,83,0,97,'cat','/','',123,'0'], ['max','Exception','len','str','eval','type','chr'], [])
-test_code = Code(bytes.fromhex('67006401a2017d0164027c0164033c007c007c0164043c0064057d027c0144005d067d037c027c0337007d0271107c025300'), ['var', 'my_list', 's', 'v'], [None, (10, 'Hello', 3.14, True), 17, 1, 3, 0], [], [])
+test_code = Code(bytes.fromhex('67006401a2017d007c006402640385023d0074007c008301010064005300'), ['my_list', ''], [None, (8, 6, 4, 2, 0), 1, 3], ['print', ''], [])
 test_code.tui()
