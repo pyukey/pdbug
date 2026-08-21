@@ -328,6 +328,7 @@ class Code:
         self.pretty_program = ['' for _ in self.og_program] # [ASM_STR[i[0]] for i in self.og_program]
         self.rip = 0
         self.breakpoints = []
+        self.loops = set()
 
     def pop(self):
         self.rsp -= 1
@@ -355,6 +356,8 @@ class Code:
 
     def pretty_print(self, string):
         for _ in range(self.rbp):
+            string = '    ' + string
+        for _ in self.loops:
             string = '    ' + string
         self.pretty_program[self.rip] = string
 
@@ -531,7 +534,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"@= {tos1}")
+            self.ppush(f"@= {tos}")
         else:
             self.ppush(f"{tos1} @ {tos}")
         self.pretty_print('')
@@ -549,7 +552,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"**= {tos1}")
+            self.ppush(f"**= {tos}")
         else:
             self.ppush(f"{tos1} ** {tos}")
         self.pretty_print('')
@@ -567,7 +570,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"*= {tos1}")
+            self.ppush(f"*= {tos}")
         else:
             self.ppush(f"{tos1} * {tos}")
         self.pretty_print('')
@@ -591,7 +594,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"%= {tos1}")
+            self.ppush(f"%= {tos}")
         else:
             self.ppush(f"{tos1} % {tos}")
         self.pretty_print('')
@@ -613,7 +616,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"+= {tos1}")
+            self.ppush(f"+= {tos}")
         else:
             self.ppush(f"{tos1} + {tos}")
         self.pretty_print('')
@@ -631,7 +634,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"-= {tos1}")
+            self.ppush(f"-= {tos}")
         else:
             self.ppush(f"{tos1} - {tos}")
         self.pretty_print('')
@@ -693,7 +696,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"//= {tos1}")
+            self.ppush(f"//= {tos}")
         else:
             self.ppush(f"{tos1} // {tos}")
         self.pretty_print('')
@@ -711,7 +714,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"/= {tos1}")
+            self.ppush(f"/= {tos}")
         else:
             self.ppush(f"{tos1} / {tos}")
         self.pretty_print('')
@@ -729,7 +732,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"<<= {tos1}")
+            self.ppush(f"<<= {tos}")
         else:
             self.ppush(f"{tos1} << {tos}")
         self.pretty_print('')
@@ -748,7 +751,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f">>= {tos1}")
+            self.ppush(f">>= {tos}")
         else:
             self.ppush(f"{tos1} >> {tos}")
         self.pretty_print('')
@@ -766,7 +769,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"&= {tos1}")
+            self.ppush(f"&= {tos}")
         else:
             self.ppush(f"{tos1} & {tos}")
         self.pretty_print('')
@@ -784,7 +787,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"^= {tos1}")
+            self.ppush(f"^= {tos}")
         else:
             self.ppush(f"{tos1} ^ {tos}")
         self.pretty_print('')
@@ -802,7 +805,7 @@ class Code:
         tos = self.ppop()
         tos1 = self.ppop()
         if inplace:
-            self.ppush(f"|= {tos1}")
+            self.ppush(f"|= {tos}")
         else:
             self.ppush(f"{tos1} | {tos}")
         self.pretty_print('')
@@ -940,7 +943,7 @@ class Code:
 
     def BUILD_TUPLE(self, val):
         # Functionality
-        self.push(reversed(tuple(self.pop() for _ in range(val))))
+        self.push(tuple(reversed(tuple(self.pop() for _ in range(val)))))
 
         # Decompilation
         tos = reversed([self.ppop() for _ in range(val)])
@@ -949,10 +952,10 @@ class Code:
 
     def BUILD_LIST(self, val):
         # Functionality
-        self.push(reversed([self.pop() for _ in range(val)]))
+        self.push(list(reversed([self.pop() for _ in range(val)])))
 
         # Decompilation
-        tos = reversed([self.ppop() for _ in range(val)])
+        tos = list(reversed([self.ppop() for _ in range(val)]))
         self.ppush(f"[{', '.join(tos)}]")
         self.pretty_print('')
 
@@ -961,7 +964,7 @@ class Code:
         self.push({self.pop() for _ in range(val)})
 
         # Decompilation
-        tos = reversed([self.ppop() for _ in range(val)])
+        tos = set(reversed([self.ppop() for _ in range(val)]))
         self.ppush(f"{{{', '.join(tos)}}}")
         self.pretty_print('')
 
@@ -1159,18 +1162,20 @@ class Code:
         # Functionality
         tos = self.pop()
         ptos = self.ppop()
+        self.loops.discard(self.rip)
+        self.pretty_print(f"for v{self.rbp} in {ptos}:")
         try:
             v = tos.__next__()
             self.push(tos)
             self.push(v)
 
             # Decompilation
+            self.loops.add(self.rip)
             self.ppush(ptos)
             self.ppush(f"v{self.rbp}")
         except:
+            self.loops.discard(self.rip)
             self.rip += val
-        
-        self.pretty_print(f"for v{self.rbp} in {ptos}:")
 
     def LIST_APPEND(self, val):
         # Functionality
@@ -1189,14 +1194,19 @@ class Code:
         # Functionality
         tos = self.pop()
         tos1 = self.pop()
-        list.extend(tos1[-val],tos)
+        isEmpty = tos1 == []
+        tos1.extend(tos)
         self.push(tos1)
 
         # Decompilation
         tos = self.ppop()
         tos1 = self.ppop()
-        self.ppush(tos1)
-        self.pretty_print(f"{tos1}.extend({tos})")
+        if isEmpty:
+            self.ppush(tos)
+            self.pretty_print(f"")
+        else:
+            self.ppush(tos1)
+            self.pretty_print(f"{tos1}.extend({tos})")
 
     def SET_ADD(self, val):
         # Functionality
@@ -1552,7 +1562,7 @@ class Code:
         if 'INPLACE' in ASM_INSTR[self.program[self.rip-1][0]]:
             self.pretty_print(f"{tos}.{name} {tos1}")
         else:
-            self.pretty_print(f"{tos}.{name} = {tos1}")
+            self.pretty_print(f"{tos}.{name} = {tos}")
 
     def DELETE_ATTR(self, val):
         # Functionality
@@ -1919,6 +1929,7 @@ class Code:
         self.program = self.og_program.copy()
         for i in range(1,len(command)):
             self.variables[i-1] = command[i]
+        self.loops = set()
 
     def run(self, command):
         self.reset(command)
@@ -2061,5 +2072,6 @@ class Code:
                 case _:
                     print('Command', command[0], 'is not a recognized command')
 # Test Example
-test_code = Code(bytes.fromhex('64017c0037007d00740064027c0064031a0083027d027a067c007c0216007d0257006e1e04007401792f01007d0301007a127c0164046b0272245700590064007d037e03640553005700590064007d037e036406530064007d037e03770177007c0064076b05724d7c00740274037c0183018301160064026b02724b740474057c01830174036b0272487c01830153006408830153006406530074037c01830174067c00830117005300'), ['', '', '', ''], [None,83,0,97,'cat','/','',123,'0'], ['max','Exception','len','str','eval','type','chr'], [])
+#test_code = Code(bytes.fromhex('64017c0037007d00740064027c0064031a0083027d027a067c007c0216007d0257006e1e04007401792f01007d0301007a127c0164046b0272245700590064007d037e03640553005700590064007d037e036406530064007d037e03770177007c0064076b05724d7c00740274037c0183018301160064026b02724b740474057c01830174036b0272487c01830153006408830153006406530074037c01830174067c00830117005300'), ['', '', '', ''], [None,83,0,97,'cat','/','',123,'0'], ['max','Exception','len','str','eval','type','chr'], [])
+test_code = Code(bytes.fromhex('67006401a2017d0164027c0164033c007c007c0164043c0064057d027c0144005d067d037c027c0337007d0271107c025300'), ['var', 'my_list', 's', 'v'], [None, (10, 'Hello', 3.14, True), 17, 1, 3, 0], [], [])
 test_code.tui()
