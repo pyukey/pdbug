@@ -10,6 +10,16 @@ from collections import abc
 import inspect
 import asyncio
 
+######################
+#  EDIT THESE FIELDS #
+######################
+TEST_BYTECODE = bytes.fromhex('67006401a2017d0074007c0083017d0164027d0209007c007c0264008502190044005d067d0374017c038301010071117c02640437007d027c027c016b007221710a0900740164058301010064005300')
+TEST_VARIABLE_NAMES = ['my_list', 'size', 'i', 'm']
+TEST_CONSTANTS = [None, ('mew', 'meow', 'meoow', 'meooow', 'meoooow'), 0, True, 1, 'tadaaa']
+TEST_GLOBAL_FUNCTIONS = ['len', 'print']
+TEST_NAMES = []
+######################
+
 STACK_SIZE = 0x100
 CALL_STACK_SIZE = 0x10
 BLOCK_STACK_SIZE = 0x10
@@ -2069,6 +2079,5 @@ class Code:
                 case _:
                     print('Command', command[0], 'is not a recognized command')
 # Test Example
-#test_code = Code(bytes.fromhex('64017c0037007d00740064027c0064031a0083027d027a067c007c0216007d0257006e1e04007401792f01007d0301007a127c0164046b0272245700590064007d037e03640553005700590064007d037e036406530064007d037e03770177007c0064076b05724d7c00740274037c0183018301160064026b02724b740474057c01830174036b0272487c01830153006408830153006406530074037c01830174067c00830117005300'), ['', '', '', ''], [None,83,0,97,'cat','/','',123,'0'], ['max','Exception','len','str','eval','type','chr'], [])
-test_code = Code(bytes.fromhex('67006401a2017d007c006402640385023d0074007c008301010064005300'), ['my_list', ''], [None, (8, 6, 4, 2, 0), 1, 3], ['print', ''], [])
+test_code = Code(TEST_BYTECODE, TEST_VARIABLE_NAMES, TEST_CONSTANTS, TEST_GLOBAL_FUNCTIONS, TEST_NAMES)
 test_code.tui()
